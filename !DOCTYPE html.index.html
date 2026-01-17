@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>レシート送信アプリ Pro (PDF版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- jsPDF library for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans JP', sans-serif; touch-action: manipulation; }
+        .tap-target { min-height: 44px; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .star-btn { color: #cbd5e1; }
+        .star-btn.active { color: #f59e0b; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col pb-safe">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md sticky top-0 z-10 flex justify-between items-center">
+        <h1 class="text-lg font-bold flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            レシートPDF送信くん
+        </h1>
+        <button id="openSettingsBtn" class="p-2 hover:bg-blue-500 rounded-full transition">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow p-4 max-w-lg mx-auto w-full flex flex-col gap-5">
+
+        <!-- Selection Area -->
+        <section class="bg-white p-4 rounded-xl shadow-sm space-y-4">
+            <!-- Email Select -->
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">宛先</label>
+                <div class="relative">
+                    <select id="mainEmailSelect" class="w-full appearance-none bg-slate-50 border border-slate-300 rounded-lg p-3 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-500 tap-target">
+                        <option value="">(設定から宛先を追加してください)</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date Select -->
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">日付 (レシート記載日)</label>
+                <input type="date" id="receiptDateInput" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 tap-target font-sans" style="-webkit-appearance: none;">
+            </div>
+
+            <!-- Category Select (Chips) -->
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-2">費目カテゴリ</label>
+                <div id="categoryChips" class="flex flex-wrap gap-2">
+                    <!-- Javascript will populate this -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Preview Area (Dynamic) -->
+        <div id="previewArea" class="hidden bg-white p-4 rounded-xl shadow-sm">
+            <div class="flex justify-between items-center mb-2">
+                <h3 class="font-bold text-slate-700">添付画像 <span id="imageCount" class="text-sm font-normal text-slate-500 ml-1">(0枚)</span></h3>
+                <button id="clearImagesBtn" class="text-xs text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50">全て削除</button>
+            </div>
+            
+            <!-- Horizontal Scroll Container -->
+            <div class="flex overflow-x-auto gap-3 pb-2 hide-scrollbar snap-x" id="imageContainer">
+                <!-- Images will be injected here -->
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="mt-auto pt-4 space-y-3 sticky bottom-4 z-0">
+            <input type="file" id="cameraInput" accept="image/*" multiple class="hidden">
+            
+            <div class="grid grid-cols-5 gap-2">
+                <!-- Camera Button -->
+                <button id="addPhotoBtn" class="col-span-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-4 px-2 rounded-xl shadow flex flex-col items-center justify-center gap-1 transition active:scale-95 touch-manipulation">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    <span class="text-xs">写真を追加</span>
+                </button>
+
+                <!-- Send Button -->
+                <button id="sendBtn" class="col-span-3 bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-2 rounded-xl shadow-lg flex flex-col items-center justify-center gap-1 transition active:scale-95 touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    <span class="text-lg">PDF作成・送信</span>
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Settings Modal (Full Screen) -->
+    <div id="settingsModal" class="fixed inset-0 bg-white z-50 transform translate-y-full transition-transform duration-300 flex flex-col">
+        <div class="bg-slate-100 p-4 border-b border-slate-200 flex justify-between items-center sticky top-0">
+            <h2 class="font-bold text-lg">設定</h2>
+            <button id="closeSettingsBtn" class="text-blue-600 font-bold px-2 py-1">完了</button>
+        </div>
+        
+        <div class="flex-grow overflow-y-auto p-4 space-y-8 pb-10">
+            
+            <!-- Email Settings -->
+            <section>
+                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1 flex justify-between items-center">
+                    宛先リスト
+                    <button id="addEmailBtn" class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded hover:bg-blue-200">＋ 追加</button>
+                </h3>
+                <p class="text-xs text-slate-400 mb-2">★を押してデフォルトの宛先を設定できます。</p>
+                <div id="emailList" class="space-y-2">
+                    <!-- Email items -->
+                </div>
+            </section>
+
+            <!-- Category Settings -->
+            <section>
+                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1 flex justify-between items-center">
+                    カテゴリ設定
+                    <button id="addCategoryBtn" class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded hover:bg-blue-200">＋ 追加</button>
+                </h3>
+                <div id="categoryList" class="space-y-2">
+                    <!-- Category items -->
+                </div>
+            </section>
+
+             <!-- Other Settings -->
+             <section>
+                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">件名オプション</h3>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold">先頭文字:</span>
+                    <input type="text" id="subjectPrefixInput" class="flex-grow bg-slate-50 border border-slate-300 rounded p-2" placeholder="（任意）">
+                </div>
+                <p class="text-xs text-slate-400 mt-1">※件名は「【費目】 日付」の形式で自動生成されます。</p>
+            </section>
+
+            <div class="pt-8 text-center">
+                <button id="resetAllBtn" class="text-red-500 text-sm underline">すべての設定を初期化</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast/Status Modal -->
+    <div id="statusModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white p-6 rounded-xl shadow-xl max-w-xs w-full m-4 text-center transform transition-transform duration-300 scale-95" id="modalContent">
+            <div id="loadingIcon" class="hidden flex justify-center mb-4"><div class="loader"></div></div>
+            <p id="statusText" class="font-medium text-slate-800 mb-4 whitespace-pre-wrap">処理中...</p>
+            <button id="closeModalBtn" class="w-full bg-slate-200 text-slate-700 py-2 rounded-lg hidden">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        // --- State Management ---
+        const DEFAULT_CATEGORIES = ['食費', '日用品', '医療費', '交通費', '雑費', 'その他1', 'その他2'];
+        const DEFAULT_EMAILS = []; // Empty initially
+
+        let state = {
+            emails: JSON.parse(localStorage.getItem('receipt_app_emails') || JSON.stringify(DEFAULT_EMAILS)),
+            categories: JSON.parse(localStorage.getItem('receipt_app_categories') || JSON.stringify(DEFAULT_CATEGORIES)),
+            subjectPrefix: localStorage.getItem('receipt_app_subject') || '',
+            defaultEmail: localStorage.getItem('receipt_app_default_email') || null,
+            selectedCategory: null,
+            files: [] // Array of File objects
+        };
+
+        // --- DOM Elements ---
+        const els = {
+            mainEmailSelect: document.getElementById('mainEmailSelect'),
+            receiptDateInput: document.getElementById('receiptDateInput'),
+            categoryChips: document.getElementById('categoryChips'),
+            previewArea: document.getElementById('previewArea'),
+            imageContainer: document.getElementById('imageContainer'),
+            imageCount: document.getElementById('imageCount'),
+            clearImagesBtn: document.getElementById('clearImagesBtn'),
+            cameraInput: document.getElementById('cameraInput'),
+            addPhotoBtn: document.getElementById('addPhotoBtn'),
+            sendBtn: document.getElementById('sendBtn'),
+            // Settings
+            openSettingsBtn: document.getElementById('openSettingsBtn'),
+            settingsModal: document.getElementById('settingsModal'),
+            closeSettingsBtn: document.getElementById('closeSettingsBtn'),
+            emailList: document.getElementById('emailList'),
+            addEmailBtn: document.getElementById('addEmailBtn'),
+            categoryList: document.getElementById('categoryList'),
+            addCategoryBtn: document.getElementById('addCategoryBtn'),
+            subjectPrefixInput: document.getElementById('subjectPrefixInput'),
+            resetAllBtn: document.getElementById('resetAllBtn'),
+            // Modal
+            statusModal: document.getElementById('statusModal'),
+            modalContent: document.getElementById('modalContent'),
+            statusText: document.getElementById('statusText'),
+            loadingIcon: document.getElementById('loadingIcon'),
+            closeModalBtn: document.getElementById('closeModalBtn'),
+        };
+
+        // --- Initialization ---
+        function init() {
+            renderMainEmailSelect();
+            renderCategoryChips();
+            renderSettings();
+            els.subjectPrefixInput.value = state.subjectPrefix;
+            
+            // Set default date to today
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            els.receiptDateInput.value = `${yyyy}-${mm}-${dd}`;
+            
+            // Set first category as selected by default if exists
+            if (state.categories.length > 0) {
+                selectCategory(state.categories[0]);
+            }
+
+            updateSendButtonState();
+        }
+
+        function saveState() {
+            localStorage.setItem('receipt_app_emails', JSON.stringify(state.emails));
+            localStorage.setItem('receipt_app_categories', JSON.stringify(state.categories));
+            localStorage.setItem('receipt_app_subject', state.subjectPrefix);
+            if (state.defaultEmail) {
+                localStorage.setItem('receipt_app_default_email', state.defaultEmail);
+            } else {
+                localStorage.removeItem('receipt_app_default_email');
+            }
+        }
+
+        // --- Main UI Rendering ---
+
+        function renderMainEmailSelect() {
+            els.mainEmailSelect.innerHTML = '';
+            if (state.emails.length === 0) {
+                const opt = document.createElement('option');
+                opt.text = "宛先未登録（設定から追加）";
+                opt.value = "";
+                els.mainEmailSelect.add(opt);
+            } else {
+                let defaultFound = false;
+                state.emails.forEach(email => {
+                    const opt = document.createElement('option');
+                    opt.value = email;
+                    opt.text = email;
+                    if (email === state.defaultEmail) {
+                        opt.selected = true;
+                        defaultFound = true;
+                    }
+                    els.mainEmailSelect.add(opt);
+                });
+                
+                // If default email not in list (deleted?), select first
+                if (!defaultFound && state.emails.length > 0) {
+                    els.mainEmailSelect.selectedIndex = 0;
+                }
+            }
+        }
+
+        function renderCategoryChips() {
+            els.categoryChips.innerHTML = '';
+            state.categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-2 rounded-lg text-sm font-medium border transition tap-target ${
+                    state.selectedCategory === cat 
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`;
+                btn.textContent = cat;
+                btn.onclick = () => selectCategory(cat);
+                els.categoryChips.appendChild(btn);
+            });
+        }
+
+        function selectCategory(cat) {
+            state.selectedCategory = cat;
+            renderCategoryChips();
+        }
+
+        function renderPreview() {
+            els.imageContainer.innerHTML = '';
+            els.imageCount.textContent = `(${state.files.length}枚)`;
+
+            if (state.files.length === 0) {
+                els.previewArea.classList.add('hidden');
+                return;
+            }
+            els.previewArea.classList.remove('hidden');
+
+            state.files.forEach((file, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'relative flex-shrink-0 w-24 h-32 bg-slate-200 rounded-lg overflow-hidden border border-slate-300 snap-center';
+                
+                const img = document.createElement('img');
+                img.className = 'w-full h-full object-cover';
+                
+                const reader = new FileReader();
+                reader.onload = (e) => img.src = e.target.result;
+                reader.readAsDataURL(file);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'absolute top-0 right-0 bg-red-500 text-white w-6 h-6 flex items-center justify-center rounded-bl-lg shadow-sm';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    removeFile(index);
+                };
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(removeBtn);
+                els.imageContainer.appendChild(wrapper);
+            });
+            updateSendButtonState();
+        }
+
+        function updateSendButtonState() {
+            if (state.files.length === 0) {
+                els.sendBtn.disabled = true;
+                els.sendBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                els.sendBtn.disabled = false;
+                els.sendBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // --- Settings UI Rendering ---
+
+        function renderSettings() {
+            // Render Email List
+            els.emailList.innerHTML = '';
+            state.emails.forEach((email, idx) => {
+                const isDefault = email === state.defaultEmail;
+                const div = createEmailListItem(email, isDefault, idx);
+                els.emailList.appendChild(div);
+            });
+
+            // Render Category List
+            els.categoryList.innerHTML = '';
+            state.categories.forEach((cat, idx) => {
+                const div = createCategoryListItem(cat, () => deleteCategory(idx), () => editCategory(idx));
+                els.categoryList.appendChild(div);
+            });
+        }
+
+        function createEmailListItem(email, isDefault, idx) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between bg-white p-3 rounded shadow-sm border border-slate-200';
+            
+            const leftGroup = document.createElement('div');
+            leftGroup.className = 'flex items-center gap-2 overflow-hidden';
+            
+            // Star Button
+            const starBtn = document.createElement('button');
+            starBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+            starBtn.className = `star-btn ${isDefault ? 'active' : ''} p-1 hover:scale-110 transition`;
+            starBtn.onclick = () => setDefaultEmail(email);
+
+            const span = document.createElement('span');
+            span.textContent = email;
+            span.className = 'truncate text-sm';
+            
+            leftGroup.appendChild(starBtn);
+            leftGroup.appendChild(span);
+
+            // Delete Button
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+            delBtn.className = 'text-slate-400 hover:text-red-500 p-2';
+            delBtn.onclick = () => deleteEmail(idx);
+
+            div.appendChild(leftGroup);
+            div.appendChild(delBtn);
+            return div;
+        }
+
+        function createCategoryListItem(text, onDelete, onEdit) {
+            const div = document.createElement('div');
+            div.className = 'flex items-center justify-between bg-white p-3 rounded shadow-sm border border-slate-200';
+            
+            const span = document.createElement('span');
+            span.textContent = text;
+            span.className = 'truncate mr-2 flex-grow';
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'flex gap-2 shrink-0';
+
+            const editBtn = document.createElement('button');
+            editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
+            editBtn.className = 'text-slate-400 hover:text-blue-500 p-1';
+            editBtn.onclick = onEdit;
+
+            const delBtn = document.createElement('button');
+            delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+            delBtn.className = 'text-slate-400 hover:text-red-500 p-1';
+            delBtn.onclick = onDelete;
+
+            btnGroup.appendChild(editBtn);
+            btnGroup.appendChild(delBtn);
+
+            div.appendChild(span);
+            div.appendChild(btnGroup);
+            return div;
+        }
+
+        // --- Logic Actions ---
+
+        function removeFile(index) {
+            state.files.splice(index, 1);
+            renderPreview();
+        }
+
+        // Email Logic
+        els.addEmailBtn.onclick = () => {
+            const email = prompt("追加するメールアドレスを入力してください:");
+            if (email && email.trim() !== "") {
+                const cleanedEmail = email.trim();
+                if (state.emails.includes(cleanedEmail)) {
+                    alert("そのアドレスは既に登録されています");
+                    return;
+                }
+                state.emails.push(cleanedEmail);
+                // If it's the only email, make it default automatically
+                if (state.emails.length === 1) {
+                    state.defaultEmail = cleanedEmail;
+                }
+                saveState();
+                renderSettings();
+                renderMainEmailSelect();
+            }
+        };
+
+        function setDefaultEmail(email) {
+            if (state.defaultEmail === email) {
+                // toggle off? maybe allow no default.
+                state.defaultEmail = null;
+            } else {
+                state.defaultEmail = email;
+            }
+            saveState();
+            renderSettings();
+            renderMainEmailSelect();
+        }
+
+        function deleteEmail(index) {
+            if (confirm("このメールアドレスを削除しますか？")) {
+                const deletedEmail = state.emails[index];
+                state.emails.splice(index, 1);
+                
+                if (state.defaultEmail === deletedEmail) {
+                    state.defaultEmail = null;
+                }
+                
+                saveState();
+                renderSettings();
+                renderMainEmailSelect();
+            }
+        }
+
+        // Category Logic
+        els.addCategoryBtn.onclick = () => {
+            const cat = prompt("新しいカテゴリ名を入力してください:");
+            if (cat && cat.trim() !== "") {
+                state.categories.push(cat.trim());
+                saveState();
+                renderSettings();
+                renderCategoryChips();
+            }
+        };
+
+        function editCategory(index) {
+            const current = state.categories[index];
+            const newName = prompt("カテゴリ名を編集:", current);
+            if (newName && newName.trim() !== "") {
+                state.categories[index] = newName.trim();
+                if (state.selectedCategory === current) {
+                    state.selectedCategory = newName.trim();
+                }
+                saveState();
+                renderSettings();
+                renderCategoryChips();
+            }
+        }
+
+        function deleteCategory(index) {
+            if (confirm(`カテゴリ「${state.categories[index]}」を削除しますか？`)) {
+                const deleted = state.categories[index];
+                state.categories.splice(index, 1);
+                if (state.selectedCategory === deleted) {
+                    state.selectedCategory = state.categories[0] || null;
+                }
+                saveState();
+                renderSettings();
+                renderCategoryChips();
+            }
+        }
+
+        els.subjectPrefixInput.addEventListener('change', (e) => {
+            state.subjectPrefix = e.target.value;
+            saveState();
+        });
+
+        els.resetAllBtn.onclick = () => {
+            if (confirm("全てのデータ（メール、カテゴリ設定）を初期化しますか？")) {
+                localStorage.removeItem('receipt_app_emails');
+                localStorage.removeItem('receipt_app_categories');
+                localStorage.removeItem('receipt_app_subject');
+                localStorage.removeItem('receipt_app_default_email');
+                location.reload();
+            }
+        };
+
+        // --- Event Listeners (Camera & Share) ---
+
+        els.addPhotoBtn.onclick = () => els.cameraInput.click();
+
+        els.cameraInput.onchange = (e) => {
+            if (e.target.files) {
+                const newFiles = Array.from(e.target.files);
+                state.files = [...state.files, ...newFiles];
+                renderPreview();
+                setTimeout(() => {
+                    els.imageContainer.scrollLeft = els.imageContainer.scrollWidth;
+                }, 100);
+            }
+            els.cameraInput.value = '';
+        };
+
+        els.clearImagesBtn.onclick = () => {
+            if (confirm("画像を全て削除しますか？")) {
+                state.files = [];
+                renderPreview();
+            }
+        };
+
+        els.openSettingsBtn.onclick = () => {
+            els.settingsModal.classList.remove('translate-y-full');
+        };
+        els.closeSettingsBtn.onclick = () => {
+            els.settingsModal.classList.add('translate-y-full');
+        };
+
+        // --- PDF Generation & Send Helper ---
+
+        // 画像とテキストを合成した画像を生成する関数
+        const processImageWithText = (file, text) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        // Canvasを作成
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // フォントサイズなどの設定
+                        const fontSize = Math.max(img.width * 0.05, 30); 
+                        const padding = fontSize;
+                        const headerHeight = fontSize + (padding * 2);
+                        
+                        canvas.width = img.width;
+                        canvas.height = img.height + headerHeight;
+                        
+                        // 背景を白で塗りつぶし
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // テキスト描画 (OSのフォントが使えるため文字化けしない)
+                        ctx.font = `bold ${fontSize}px "Noto Sans JP", sans-serif`;
+                        ctx.fillStyle = '#000000';
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(text, canvas.width / 2, headerHeight / 2);
+                        
+                        // 画像描画 (テキストの下に)
+                        ctx.drawImage(img, 0, headerHeight);
+                        
+                        // 画像データとして出力 (JPEG)
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+                        
+                        resolve({
+                            dataUrl: dataUrl,
+                            width: canvas.width,
+                            height: canvas.height
+                        });
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        };
+
+        // --- SEND LOGIC ---
+        els.sendBtn.onclick = async () => {
+            if (state.files.length === 0) return;
+
+            const email = els.mainEmailSelect.value;
+            if (!email && state.emails.length > 0) {
+                 if(!confirm("宛先が選択されていません。続行しますか？")) return;
+            }
+
+            // Get selected date
+            const dateVal = els.receiptDateInput.value; // yyyy-mm-dd
+            if (!dateVal) {
+                alert("日付を選択してください");
+                return;
+            }
+            // Prepare date strings
+            const dateStr = dateVal.replace(/-/g, ''); // yyyyMMdd
+            const formattedDate = dateVal.replace(/-/g, '/'); // yyyy/MM/dd
+
+            // 1. Copy Email to Clipboard immediately
+            if (email) {
+                try {
+                    await navigator.clipboard.writeText(email);
+                    showStatus("宛先をコピーしました！\nメールアプリで貼り付けてください。", "loading"); 
+                    await new Promise(r => setTimeout(r, 1200)); 
+                } catch (err) {
+                    console.error("Clipboard failed", err);
+                }
+            }
+
+            showStatus("PDFを作成中...", "loading");
+
+            // 2. Initialize jsPDF
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.getWidth();   // A4 width (approx 210mm)
+            const pageHeight = doc.internal.pageSize.getHeight(); // A4 height (approx 297mm)
+            const margin = 10;
+
+            try {
+                // 3. Loop through files and add to PDF
+                for (let i = 0; i < state.files.length; i++) {
+                    if (i > 0) doc.addPage();
+                    
+                    const file = state.files[i];
+                    const headerText = `【${state.selectedCategory || '未分類'}】 ${formattedDate}`;
+                    
+                    // 画像とテキストを合成した画像データを取得
+                    const imageObj = await processImageWithText(file, headerText);
+                    
+                    // PDFページサイズに合わせてリサイズ計算
+                    const maxWidth = pageWidth - (margin * 2);
+                    const maxHeight = pageHeight - (margin * 2);
+                    
+                    let w = imageObj.width;
+                    let h = imageObj.height;
+                    
+                    if (w > maxWidth) {
+                        const ratio = maxWidth / w;
+                        w = maxWidth;
+                        h = h * ratio;
+                    }
+                    if (h > maxHeight) {
+                        const ratio = maxHeight / h;
+                        h = maxHeight;
+                        w = w * ratio;
+                    }
+
+                    const x = (pageWidth - w) / 2;
+                    const y = margin; // マージンに合わせて配置
+
+                    // 画像のみをPDFに追加 (テキストは既に画像に含まれている)
+                    doc.addImage(imageObj.dataUrl, 'JPEG', x, y, w, h);
+                }
+
+                // 4. Generate PDF Blob/File
+                const cat = state.selectedCategory || '未分類';
+                const filename = `【${cat}】_${dateStr}.pdf`;
+
+                const pdfBlob = doc.output('blob');
+                const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+
+                // 5. Prepare Share Data
+                let subject = `【${cat}】 ${formattedDate}`;
+                if (state.subjectPrefix && state.subjectPrefix.trim() !== '') {
+                    subject = `${state.subjectPrefix} ${subject}`;
+                }
+
+                let body = `経費レシートPDFを送付します。\n\n`;
+                body += `日付: ${formattedDate}\n`;
+                body += `カテゴリ: ${cat}\n`;
+                if (email) body += `宛先: 貼り付けてください\n`;
+
+                // 6. Share
+                if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+                    await navigator.share({
+                        files: [pdfFile],
+                        title: subject,
+                        text: body
+                    });
+                    showStatus("PDFを添付しました。\nメールアプリを選択し\n宛先をペーストしてください。", "success");
+                } else {
+                    throw new Error("このブラウザはPDFファイルの共有に対応していないようです。");
+                }
+
+            } catch (error) {
+                console.error(error);
+                let errMsg = "エラーが発生しました。\n" + error.message;
+                if (error.name === 'AbortError') {
+                    showStatus("キャンセルされました", "success");
+                    return;
+                }
+                showStatus(errMsg, "error");
+            }
+        };
+
+        function showStatus(msg, type) {
+            els.statusModal.classList.remove('hidden');
+            void els.statusModal.offsetWidth; 
+            els.statusModal.classList.remove('opacity-0');
+            
+            els.statusText.textContent = msg;
+            
+            if (type === 'loading') {
+                els.loadingIcon.classList.remove('hidden');
+                els.closeModalBtn.classList.add('hidden');
+            } else if (type === 'success') {
+                els.loadingIcon.classList.add('hidden');
+                els.closeModalBtn.classList.add('hidden');
+                setTimeout(() => {
+                    els.statusModal.classList.add('opacity-0');
+                    setTimeout(() => els.statusModal.classList.add('hidden'), 3500); //少し長めに
+                }, 3500);
+            } else {
+                els.loadingIcon.classList.add('hidden');
+                els.closeModalBtn.classList.remove('hidden');
+            }
+        }
+
+        els.closeModalBtn.onclick = () => {
+            els.statusModal.classList.add('opacity-0');
+            setTimeout(() => els.statusModal.classList.add('hidden'), 300);
+        };
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>
