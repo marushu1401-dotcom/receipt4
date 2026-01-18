@@ -39,7 +39,6 @@
             レシートPDF送信くん
         </h1>
         <button id="openSettingsBtn" class="p-2 hover:bg-blue-500 rounded-full transition">
-            <!-- 修正後のシンプルな歯車アイコン -->
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
         </button>
     </header>
@@ -153,6 +152,23 @@
                 <p class="text-xs text-slate-400 mt-1">※件名は「【費目】 日付」の形式で自動生成されます。</p>
             </section>
 
+            <!-- Backup Settings -->
+            <section>
+                <h3 class="font-bold text-slate-700 mb-2 border-b pb-1">データ管理</h3>
+                <div class="flex flex-col gap-3">
+                    <button id="exportBtn" class="bg-slate-200 text-slate-700 py-3 rounded-lg font-medium hover:bg-slate-300 flex justify-center items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        設定を保存 (バックアップ)
+                    </button>
+                    <button id="importBtn" class="bg-slate-200 text-slate-700 py-3 rounded-lg font-medium hover:bg-slate-300 flex justify-center items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        設定を復元 (読み込み)
+                    </button>
+                    <input type="file" id="importInput" accept=".json" class="hidden">
+                </div>
+                <p class="text-xs text-slate-400 mt-2">※機種変更時などに設定を引き継げます。</p>
+            </section>
+
             <div class="pt-8 text-center">
                 <button id="resetAllBtn" class="text-red-500 text-sm underline">すべての設定を初期化</button>
             </div>
@@ -204,6 +220,10 @@
             addCategoryBtn: document.getElementById('addCategoryBtn'),
             subjectPrefixInput: document.getElementById('subjectPrefixInput'),
             resetAllBtn: document.getElementById('resetAllBtn'),
+            // Backup
+            exportBtn: document.getElementById('exportBtn'),
+            importBtn: document.getElementById('importBtn'),
+            importInput: document.getElementById('importInput'),
             // Modal
             statusModal: document.getElementById('statusModal'),
             modalContent: document.getElementById('modalContent'),
@@ -515,6 +535,70 @@
             state.subjectPrefix = e.target.value;
             saveState();
         });
+
+        // Backup Logic - Export
+        els.exportBtn.onclick = () => {
+            const data = {
+                emails: state.emails,
+                categories: state.categories,
+                subjectPrefix: state.subjectPrefix,
+                defaultEmail: state.defaultEmail
+            };
+            const jsonStr = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            const dateStr = new Date().toISOString().slice(0,10).replace(/-/g, '');
+            a.download = `receipt_app_backup_${dateStr}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
+        // Backup Logic - Import
+        els.importBtn.onclick = () => els.importInput.click();
+
+        els.importInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    // Basic validation
+                    if (Array.isArray(data.emails) && Array.isArray(data.categories)) {
+                        if(confirm("現在の設定を上書きして、バックアップから復元しますか？")) {
+                            state.emails = data.emails;
+                            state.categories = data.categories;
+                            state.subjectPrefix = data.subjectPrefix || '';
+                            state.defaultEmail = data.defaultEmail || null;
+                            
+                            saveState();
+                            
+                            // Reflect changes
+                            renderSettings();
+                            renderMainEmailSelect();
+                            renderCategoryChips();
+                            els.subjectPrefixInput.value = state.subjectPrefix;
+                            
+                            alert("設定を復元しました！");
+                        }
+                    } else {
+                        alert("不正なファイル形式です。");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("ファイルの読み込みに失敗しました。");
+                }
+            };
+            reader.readAsText(file);
+            els.importInput.value = ''; // reset
+        };
 
         els.resetAllBtn.onclick = () => {
             if (confirm("全てのデータ（メール、カテゴリ設定）を初期化しますか？")) {
