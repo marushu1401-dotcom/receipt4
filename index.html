@@ -140,6 +140,7 @@
                 <div id="categoryList" class="space-y-2">
                     <!-- Category items -->
                 </div>
+                <p class="text-xs text-slate-400 mt-2">※左側の矢印で並び替えができます。</p>
             </section>
 
              <!-- Other Settings -->
@@ -374,7 +375,17 @@
             // Render Category List
             els.categoryList.innerHTML = '';
             state.categories.forEach((cat, idx) => {
-                const div = createCategoryListItem(cat, () => deleteCategory(idx), () => editCategory(idx));
+                const isFirst = idx === 0;
+                const isLast = idx === state.categories.length - 1;
+                const div = createCategoryListItem(
+                    cat, 
+                    () => deleteCategory(idx), 
+                    () => editCategory(idx),
+                    () => moveCategory(idx, -1), // Up
+                    () => moveCategory(idx, 1),  // Down
+                    isFirst,
+                    isLast
+                );
                 els.categoryList.appendChild(div);
             });
         }
@@ -410,31 +421,58 @@
             return div;
         }
 
-        function createCategoryListItem(text, onDelete, onEdit) {
+        function createCategoryListItem(text, onDelete, onEdit, onMoveUp, onMoveDown, isFirst, isLast) {
             const div = document.createElement('div');
-            div.className = 'flex items-center justify-between bg-white p-3 rounded shadow-sm border border-slate-200';
+            div.className = 'flex items-center justify-between bg-white p-2 rounded shadow-sm border border-slate-200';
             
+            // Left Container: Move buttons + Text
+            const leftGroup = document.createElement('div');
+            leftGroup.className = 'flex items-center gap-3 flex-grow overflow-hidden';
+
+            // Move Buttons Container
+            const moveGroup = document.createElement('div');
+            moveGroup.className = 'flex flex-col gap-1';
+
+            // Up Button
+            const upBtn = document.createElement('button');
+            upBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>';
+            upBtn.className = `p-1 rounded ${isFirst ? 'text-slate-200 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-100 hover:text-blue-600'}`;
+            upBtn.onclick = isFirst ? null : onMoveUp;
+
+            // Down Button
+            const downBtn = document.createElement('button');
+            downBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+            downBtn.className = `p-1 rounded ${isLast ? 'text-slate-200 cursor-not-allowed' : 'text-slate-500 hover:bg-slate-100 hover:text-blue-600'}`;
+            downBtn.onclick = isLast ? null : onMoveDown;
+
+            moveGroup.appendChild(upBtn);
+            moveGroup.appendChild(downBtn);
+
             const span = document.createElement('span');
             span.textContent = text;
-            span.className = 'truncate mr-2 flex-grow';
+            span.className = 'truncate text-sm font-medium ml-1';
 
+            leftGroup.appendChild(moveGroup);
+            leftGroup.appendChild(span);
+
+            // Right Container: Action Buttons
             const btnGroup = document.createElement('div');
-            btnGroup.className = 'flex gap-2 shrink-0';
+            btnGroup.className = 'flex gap-1 shrink-0 ml-2';
 
             const editBtn = document.createElement('button');
             editBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>';
-            editBtn.className = 'text-slate-400 hover:text-blue-500 p-1';
+            editBtn.className = 'text-slate-400 hover:text-blue-500 p-2 rounded hover:bg-slate-50';
             editBtn.onclick = onEdit;
 
             const delBtn = document.createElement('button');
             delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
-            delBtn.className = 'text-slate-400 hover:text-red-500 p-1';
+            delBtn.className = 'text-slate-400 hover:text-red-500 p-2 rounded hover:bg-slate-50';
             delBtn.onclick = onDelete;
 
             btnGroup.appendChild(editBtn);
             btnGroup.appendChild(delBtn);
 
-            div.appendChild(span);
+            div.appendChild(leftGroup);
             div.appendChild(btnGroup);
             return div;
         }
@@ -529,6 +567,22 @@
                 renderSettings();
                 renderCategoryChips();
             }
+        }
+
+        // New function to handle reordering
+        function moveCategory(index, direction) {
+            const newIndex = index + direction;
+            // Bounds check
+            if (newIndex < 0 || newIndex >= state.categories.length) return;
+
+            // Swap elements
+            const temp = state.categories[index];
+            state.categories[index] = state.categories[newIndex];
+            state.categories[newIndex] = temp;
+
+            saveState();
+            renderSettings(); // Re-render the list with new order and updated button states
+            renderCategoryChips(); // Update the main screen chips order
         }
 
         els.subjectPrefixInput.addEventListener('change', (e) => {
