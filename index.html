@@ -707,7 +707,12 @@
                         title: subject,
                         text: body
                     });
-                    showStatus("PDFを添付しました。\nメールアプリを選択し\n宛先をペーストしてください。", "success");
+
+                    // Automatically clear images after share
+                    state.files = [];
+                    renderPreview();
+
+                    showStatus("送信完了", "success");
                 } else {
                     throw new Error("このブラウザはPDFファイルの共有に対応していないようです。");
                 }
